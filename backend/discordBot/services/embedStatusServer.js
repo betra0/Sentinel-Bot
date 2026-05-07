@@ -125,6 +125,7 @@ const  GenerateEmbedStatusServer = async ({infoAdress=null, seudoTitle='No defin
     
         allEbeds.push(embed2);
     }
+    // regristro de entradas y salidas 
     if (infoAdress.joinLeftRegister && infoAdress.joinLeftRegister.length > 0) {
         const actions = infoAdress.joinLeftRegister;
 
@@ -138,7 +139,7 @@ const  GenerateEmbedStatusServer = async ({infoAdress=null, seudoTitle='No defin
                     hour: '2-digit',
                     minute: '2-digit'
                 });
-                return `[${time}] ${a.playerName}: ${a.action}`;
+                return `[${time}] ${safeValue(a.playerName)}: ${a.action}`;
             })
             .join('\n');
 
