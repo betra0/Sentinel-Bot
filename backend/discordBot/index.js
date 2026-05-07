@@ -47,14 +47,14 @@ client.on('ready', async () => {
 
 
 
-client.on(Events.GuildMemberAdd, async member => {
-    console.log('se a unido un nuevo miembro al servidor')
-    changeAmountMembers(member, redis, client);
-});
-client.on(Events.GuildMemberRemove, async member => {
-    console.log('un miembro a salido del servidor')
-    changeAmountMembers(member, redis, client);  
-});
+//client.on(Events.GuildMemberAdd, async member => {
+//    console.log('se a unido un nuevo miembro al servidor')
+//    changeAmountMembers(member, redis, client);
+//});
+//client.on(Events.GuildMemberRemove, async member => {
+//    console.log('un miembro a salido del servidor')
+//    changeAmountMembers(member, redis, client);  
+//});
 
 // Cargar Eventos 
 
