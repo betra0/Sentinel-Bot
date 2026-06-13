@@ -1,3 +1,4 @@
+const { fPAHandler } = require("../handlers/followPlayersAlert.handler");
 const { changeInfoGameServerHandler } = require("../handlers/infoAddressChange.handler");
 
 
@@ -43,23 +44,8 @@ async function initRedisSubscriber(subscriber, redis, client) {
         else if(channel === 'a2sFollowPlayersAlerts'){
             // Manejar mensajes para alertas de jugadores seguidos
 
-            /*
-            {
-              "playersAlerts": [
-                {
-                  "name": "Player1",
-                  "action": "joined",
-                  "timestamp": "2024-06-01T12:00:00Z",
-                  "description": "razon del alert"
-                  "priority": "alta/baja"
-                  ""
-                },
-                
-              "address": "
-            }
-
-            */
             message = JSON.parse(message);  
+            await fPAHandler(message, client, redis);
         }
     });
 }
