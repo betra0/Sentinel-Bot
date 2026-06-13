@@ -87,6 +87,8 @@ async function logicAdressInfo(ip, port, redis){
 		console.log(prefixLog ,`Cambios detectados en ${key}`);
 		await saveInfoAdressinRedis({ adress: key, infoAdress: serverData, redis });
 		const {joinedPlayers, leftPlayers} = trackPlayerLeftJoin(serverData.players, olddata.players);
+    // funcion a2sFollowPlayerslist
+
 		await savejoinLeftRegistrer({redis, address: key, joinedPlayers, leftPlayers});
 		callRedisChangeInfo(redis, key);
 
@@ -102,6 +104,34 @@ async function logicAdressInfo(ip, port, redis){
 
 
 }
+function a2sfollowPlayers(playerjoined, playerLeft, guildId, redis){
+  if(true===false){
+    return;
+  }
+  const followList = await getSimpleRedisJson({ redis, type: 'server:a2sFollowPlayers', UID: guildId });
+  if(!followList || !Array.isArray(followList)){
+    return;
+  }
+  const playersToNotify = []
+  for(const player of joinedPlayers){
+    const playerFollow = followList.find(p => p.name.toLowerCase() === player.name.toLowerCase());
+    if(playerFollow){
+      playersToNotify.push({ ...playerFollow, action: 'join' });
+    }
+  }
+  for(const player of leftPlayers){
+    const playerFollow = followList.find(p => p.name.toLowerCase() === player.name.toLowerCase());
+    if(playerFollow){
+      playersToNotify.push({ ...playerFollow, action: 'left' });
+    }
+  }    
+
+
+
+}
+async function sendNotificationFollowPlayers(playersToNotify, redis){
+}
+ 
 function deepCompare(obj1, obj2, options = {}) {
   const { ignoreKeys = [] } = options;
 
@@ -185,6 +215,7 @@ function trackPlayerLeftJoin(newPlayers, oldPlayers){
 
 
 async function savejoinLeftRegistrer({redis, address, joinedPlayers, leftPlayers, key="a2sServer:playerJoinLeftRegister"}){
+  // 
   joinedPlayers = Array.isArray(joinedPlayers) ? joinedPlayers : [];
   leftPlayers = Array.isArray(leftPlayers) ? leftPlayers : [];
   let register = [];
