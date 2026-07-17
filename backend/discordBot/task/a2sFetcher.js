@@ -104,10 +104,38 @@ async function logicAdressInfo(ip, port, redis){
 
 
 }
-function a2sfollowPlayers(playerjoined, playerLeft, guildId, redis){
-  if(true===false){
-    return;
+async function a2sfollowPlayers(playerjoined, playerLeft, redis, address){
+
+  
+  //primero: saber que discords tienen ese server en su lista de seguimiento
+  //segundo: leer el config de ese discord para ver si tiene notificaciones activadas
+  const discordsids = await redis.hkeys(`databot:server:config`); 
+  for(const guildId of discordsids){
+    const config = await getSimpleRedisJson({ redis, type: 'server:config', UID: guildId });
+
+    // revisar si tiene las notificaciones activadas
+    if(true===false){
+      continue;
+    }
+    // si las tiene, continuamos
+
+
+    const serversFollowed = await getSimpleRedisJson({ redis, type: 'server:a2sFollowServers', UID: guildId });
+    if(!serversFollowed || !Array.isArray(serversFollowed)){
+      continue;
+    }
+
+
+    
+
+
+
+
   }
+  //tercero: mandar la notificacion a todos los discords que tengan ese player en su lista de seguimiento y tengan las notificaciones activadas
+
+
+
   const followList = await getSimpleRedisJson({ redis, type: 'server:a2sFollowPlayers', UID: guildId });
   if(!followList || !Array.isArray(followList)){
     return;
@@ -129,8 +157,38 @@ function a2sfollowPlayers(playerjoined, playerLeft, guildId, redis){
 
 
 }
-async function sendNotificationFollowPlayers(playersToNotify, redis){
+
+
+async function sendNotificationFollowPlayers(playersToNotify, redis, guildId, address){
+      /*
+    {
+      "playersAlerts": [
+        {
+          "name": "Player1",
+          "action": "joined",
+          "description": "razon del alert"
+          "priority":     "alta/baja"
+          ""
+        },
+        
+      "address":,
+      guildId:,
+
+      
+    }
+    */
+  redis.publish('a2sFollowPlayersAlerts', JSON.stringify(
+    {
+      playersAlerts: playersToNotify,
+      address: key,
+      guildId: guildId
+    }
+  ));
+  
+
 }
+
+
  
 function deepCompare(obj1, obj2, options = {}) {
   const { ignoreKeys = [] } = options;
