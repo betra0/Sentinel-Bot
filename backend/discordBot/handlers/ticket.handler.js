@@ -4,7 +4,8 @@ const { saveSimpleRedisJson } = require('../services/insertInRedis');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { TextInputBuilder, TextInputStyle } = require('discord.js');
 const { findAndEditMessageText } = require('../services/findAndEditMessageText');
-
+const fs = require('fs/promises');
+const path = require('path');
 
 
 
@@ -17,6 +18,13 @@ async function ticketHandler(interaction, client, redis) {
     // estructura de ticket postulacion(application) : ticket:apply:action:applyId
     if (type === 'apply') {
         const action = args[2]; // create, close, claim, approve, reject
+        // si es history, no necesitamos el applyId
+        // esta acción es para enviar el historial del ticket al canal de logs
+        if (action === 'history') {
+            const historyPath = args[3];
+            await sendTicketHistory(interaction, historyPath);
+            return 
+        }
         const applyId = args[3];
         const guildId = interaction.guildId;
         const configApply = await getSimpleRedisJson({ redis, type: `ticket:apply:${guildId}`, UID: applyId });
@@ -418,10 +426,17 @@ async function rejectTicketApplication(interaction, client, redis, configApply) 
     });
     dataTicket.status = 'rejected';
     await saveSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: dataTicket.authorId, json: dataTicket });
+    const historyPath = await saveHistory(interaction.channel);
     // mandar log al canal de logs
     if (channelLogs){
-        const embedLog = generateEmbedLog({ action: 'reject', dataTicket, reason: rejectReason, userStaffID: interaction.user.id });
-        await channelLogs.send({ embeds: [embedLog] });
+        const embedLog = generateEmbedLog({ action: 'reject', dataTicket, reason: rejectReason, userStaffID: interaction.user.id, historyPath: historyPath });
+        const row2= new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('Ver historial del ticket')
+                .setStyle(ButtonStyle.Primary)
+                .setCustomId(`ticket:apply:history:${historyPath}`)
+        );
+        await channelLogs.send({ embeds: [embedLog], components: [row2] });
     }
     redis.del(`ticket:${channel.id}:author`); // eliminar referencia al canal pero no el dataTicket
     await channel.delete('Ticket cerrado por rechazo de postulación');
@@ -443,7 +458,7 @@ async function closeConfirmTicketApplication(interaction, client, redis, configA
             throw error;
         }
     }
-
+    const historyPath = await saveHistory(interaction.channel);
     await redis.del(`ticket:${interaction.channel.id}:author`);
     await redis.hdel(`databot:ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, dataTicket.authorId);
     // eliminar canal
@@ -486,6 +501,8 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
             console.log(`[ticketHandler] No se pudo encontrar al usuario ${dataTicket.authorId} para enviarle el motivo de cierre.`);
         }
     }
+    // antes de borrar guardar el historial del canal en un archivo
+    const historyPath = await saveHistory(interaction.channel);
     await redis.del(`ticket:${interaction.channel.id}:author`);
     await redis.hdel(`databot:ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, dataTicket.authorId);
     // eliminar canal
@@ -493,9 +510,16 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     // mandar log al canal de logs
     if (channelLogs ){
         const reason = dataTicket.status === 'approved' ? 'Postulación aprobada previamente' : closeReason;
-        const embedLog = generateEmbedLog({ action: 'close', dataTicket, reason: reason, userStaffID: interaction.user.id });
-        await channelLogs.send({ embeds: [embedLog] });
+        const embedLog = generateEmbedLog({ action: 'close', dataTicket, reason: reason, userStaffID: interaction.user.id, historyPath: historyPath },);
+        const row2= new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('Ver historial del ticket')
+                .setStyle(ButtonStyle.Primary)
+                .setCustomId(`ticket:apply:history:${historyPath}`)
+        );
+        await channelLogs.send({ embeds: [embedLog], components: [row2] });
     }
+    
     await channel.delete('Ticket cerrado');
     return;
 }
@@ -615,7 +639,7 @@ async function generateRowTicketButtons(configApply, dataTicket) {
     return row;
 }
 
-const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID
+const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, historyPath=null 
 
 }) => {
     reason = reason || 'No especificado';
@@ -638,8 +662,261 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID
             { name: 'Postulante:', value: `<@${dataTicket.authorId}>`, inline: true },
             { name: 'Motivo:', value: `${reason}`, inline: true },
             { name: `Ticket reclamado${reclamado ? ' por' : ''}:`, value: reclamado ? `<@${reclamado}>` : 'No', inline: true },
+            { name: 'historial del ticket:', value: historyPath ? `${historyPath}` : 'No disponible', inline: true },
         )
         .setTimestamp();
 
     return embedLog;
 }
+
+async function saveHistory(channel) {
+    console.log(`[saveHistory] Iniciando guardado del historial.`);
+    console.log(`[saveHistory] Channel ID: ${channel.id}`);
+    console.log(`[saveHistory] Channel name: ${channel.name}`);
+    console.log(`[saveHistory] process.cwd(): ${process.cwd()}`);
+
+    const messages = [];
+    let lastId = null;
+    let batchNumber = 0;
+
+    while (true) {
+        const options = {
+            limit: 100
+        };
+
+        if (lastId) {
+            options.before = lastId;
+        }
+
+        console.log(
+            `[saveHistory] Obteniendo batch #${batchNumber + 1}` +
+            `${lastId ? ` antes del mensaje ${lastId}` : ''}...`
+        );
+
+        const batch = await channel.messages.fetch(options);
+
+        batchNumber++;
+
+        console.log(
+            `[saveHistory] Batch #${batchNumber} obtenido. ` +
+            `Mensajes encontrados: ${batch.size}`
+        );
+
+        if (batch.size === 0) {
+            console.log(`[saveHistory] No quedan más mensajes.`);
+            break;
+        }
+
+        for (const message of batch.values()) {
+            messages.push({
+                id: message.id,
+                authorId: message.author.id,
+                authorTag: message.author.tag,
+                content: message.content,
+                createdAt: message.createdAt.toISOString(),
+
+                attachments: [...message.attachments.values()].map(attachment => ({
+                    name: attachment.name,
+                    url: attachment.url
+                })),
+
+                embeds: message.embeds.map(embed => embed.toJSON())
+            });
+        }
+
+        console.log(
+            `[saveHistory] Mensajes acumulados: ${messages.length}`
+        );
+
+        lastId = batch.last().id;
+
+        console.log(
+            `[saveHistory] Último mensaje del batch: ${lastId}`
+        );
+
+        if (batch.size < 100) {
+            console.log(
+                `[saveHistory] Batch menor a 100 mensajes. ` +
+                `Finalizando búsqueda.`
+            );
+            break;
+        }
+    }
+
+    messages.reverse();
+
+    console.log(
+        `[saveHistory] Total de mensajes a guardar: ${messages.length}`
+    );
+
+    const directory = path.join(
+        process.cwd(),
+        'data',
+        'ticket-history'
+    );
+
+    console.log(
+        `[saveHistory] Directorio de historial: ${directory}`
+    );
+
+    try {
+        await fs.mkdir(directory, {
+            recursive: true
+        });
+
+        console.log(
+            `[saveHistory] Directorio creado/verificado correctamente: ${directory}`
+        );
+
+        const filePath = path.join(
+            directory,
+            `${channel.id}.json`
+        );
+
+        console.log(
+            `[saveHistory] Ruta final del archivo: ${filePath}`
+        );
+
+        await fs.writeFile(
+            filePath,
+            JSON.stringify(messages, null, 2),
+            'utf8'
+        );
+
+        console.log(
+            `[saveHistory] Historial guardado correctamente.`
+        );
+
+        console.log(
+            `[saveHistory] Archivo: ${filePath}`
+        );
+
+        return filePath;
+
+    } catch (error) {
+        console.error(
+            `[saveHistory] ERROR al guardar historial: ${error.message}`
+        );
+
+        console.error(
+            `[saveHistory] Stack: ${error.stack}`
+        );
+
+        throw error;
+    }
+}
+
+
+
+
+
+
+async function sendTicketHistory(interaction, historyPath, prefixLog = '[sendTicketHistory]') {
+
+    console.log(
+        `${prefixLog} Mostrando historial del ticket desde: ${historyPath}`
+    );
+
+    try {
+        const historyData = await fs.readFile(historyPath, 'utf8');
+
+        console.log(
+            `${prefixLog} Historial del ticket leído correctamente.`
+        );
+
+        console.log(
+            `${prefixLog} Tamaño del historial: ${historyData.length} caracteres.`
+        );
+
+        // Convertir el JSON a objeto
+        const history = JSON.parse(historyData);
+
+        // Generar versión simple de la conversación
+        const simpleHistory = history.map(message => {
+            let text = `[${message.createdAt}] ${message.authorTag}:`;
+
+            if (message.content && message.content.trim() !== '') {
+                text += `\n${message.content}`;
+            }
+
+            if (message.attachments && message.attachments.length > 0) {
+                text += '\n\nAdjuntos:';
+
+                for (const attachment of message.attachments) {
+                    text += `\n- ${attachment.name}: ${attachment.url}`;
+                }
+            }
+
+            if (message.embeds && message.embeds.length > 0) {
+                text += '\n\n[Embed enviado]';
+
+                for (const embed of message.embeds) {
+                    if (embed.title) {
+                        text += `\nTítulo: ${embed.title}`;
+                    }
+
+                    if (embed.description) {
+                        text += `\n${embed.description}`;
+                    }
+                }
+            }
+
+            return text;
+        }).join('\n\n----------------------------------------\n\n');
+
+        // Crear archivo temporal
+        const tempHistoryPath = path.join(
+            process.cwd(),
+            'data',
+            'ticket-history',
+            `temp-${path.basename(historyPath, '.json')}.txt`
+        );
+
+        await fs.writeFile(
+            tempHistoryPath,
+            simpleHistory,
+            'utf8'
+        );
+
+        console.log(
+            `${prefixLog} Archivo TXT temporal creado: ${tempHistoryPath}`
+        );
+
+        await interaction.reply({
+            content: '📋 Historial del ticket:',
+            files: [
+                {
+                    attachment: historyPath,
+                    name: `ticket-history-${path.basename(historyPath)}`
+                },
+                {
+                    attachment: tempHistoryPath,
+                    name: `ticket-conversacion-${path.basename(historyPath, '.json')}.txt`
+                }
+            ],
+            ephemeral: true
+        });
+
+        // Eliminar el TXT temporal después de enviarlo
+        await fs.unlink(tempHistoryPath);
+
+        console.log(
+            `${prefixLog} Archivo TXT temporal eliminado correctamente.`
+        );
+
+    } catch (error) {
+        console.error(
+            `${prefixLog} Error al procesar el historial del ticket: ${error.message}`
+        );
+
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+                content: `No se pudo leer el historial del ticket.`,
+                ephemeral: true
+            });
+        }
+    }
+
+    return;
+}
+    

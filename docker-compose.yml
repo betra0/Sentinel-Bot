@@ -13,9 +13,11 @@ services:
       - REDISHOST=redis           
       - REDISPORT=6379             
     depends_on: 
-      - redis                  
+      - redis    
+    volumes:
+    - ./backend/ticket-history:/app/data/ticket-history       
     networks:                    # Conexión a la red back-network
-      - back-network
+      - back-network   
 
   redis:
      image: redis:latest

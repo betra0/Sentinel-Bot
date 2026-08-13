@@ -31,3 +31,5 @@ venvF
 # Otros
 *.bak
 *.orig
+
+backend/ticket-history
