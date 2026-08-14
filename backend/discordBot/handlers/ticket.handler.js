@@ -457,7 +457,7 @@ async function rejectTicketApplication(interaction, client, redis, configApply) 
 
 
     // mandar log al canal de logs
-    await sendAndSaveLogTicket({interaction:interaction, channelLogs: channelLogs, reason: rejectReason, userStaffID: interaction.user.id, applyId: configApply.nombreclave, dataTicket:dataTicket});
+    await sendAndSaveLogTicket({interaction:interaction, channelLogs: channelLogs, reason: rejectReason, userStaffID: interaction.user.id, applyId: configApply.nombreclave, dataTicket:dataTicket, action: 'reject'});
     redis.del(`ticket:${channel.id}:author`); // eliminar referencia al canal pero no el dataTicket
     await channel.delete('Ticket cerrado por rechazo de postulación');
     return;
@@ -524,7 +524,8 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     // eliminar canal
     const channel = interaction.channel;
     // mandar log al canal de logs
-    await sendAndSaveLogTicket({interaction:interaction, channelLogs: channelLogs, reason: closeReason, userStaffID: interaction.user.id, applyId: configApply.nombreclave, dataTicket: dataTicket});
+    const reason = dataTicket.status === 'approved' ? 'Postulación aprobada previamente' : closeReason;
+    await sendAndSaveLogTicket({interaction:interaction, channelLogs: channelLogs, reason: reason, userStaffID: interaction.user.id, applyId: configApply.nombreclave, dataTicket: dataTicket, action: 'close'});
 
     await redis.del(`ticket:${interaction.channel.id}:author`);
     await redis.hdel(`databot:ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, dataTicket.authorId);
@@ -930,12 +931,12 @@ async function sendTicketHistory(interaction, historyPath, prefixLog = '[sendTic
 }
     
 
-async function sendAndSaveLogTicket({interaction, channelLogs, reason, userStaffID, interactionID, applyId, dataTicket}) {
+async function sendAndSaveLogTicket({interaction, channelLogs, reason, userStaffID, interactionID, applyId, dataTicket, action='close'}) {
     // Implementation for sending and saving ticket log
     const historyPath = await saveHistory(interaction.channel);
     // mandar log al canal de logs
     if (channelLogs){
-        const embedLog = generateEmbedLog({ action: 'reject', dataTicket, reason: reason, userStaffID: interaction.user.id, historyPath: historyPath });
+        const embedLog = generateEmbedLog({ action: action, dataTicket, reason: reason, userStaffID: interaction.user.id, historyPath: historyPath });
         const row2= new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setLabel('Ver historial del ticket')
