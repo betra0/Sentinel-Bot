@@ -8,7 +8,35 @@ const fs = require('fs/promises');
 const path = require('path');
 
 
+//
+/*
 
+
+configApply = {
+    nombreclave: 'nombreclave',
+    roleToAssign: 'roleId',
+    staffAurthorityRoles: ['roleId1', 'roleId2'],
+    categoryId: 'categoryId',
+    channelForLogsId: 'channelId',
+    formInTicketStr: 'formulario en texto',
+    MessagePostApproveStr: 'mensaje de bienvenida al aprobar'
+}
+
+
+dataTicket = {
+    authorId: 'userId',
+    authorTag: 'userTag',
+    channelId: 'channelId',
+    mainMessageId: 'messageId',
+    status: 'open' | 'closed' | 'approved' | 'rejected',
+    claimedBy: 'userId' | null,
+    createdAt: 'timestamp',
+    configId: 'nombreclave'
+}
+
+
+*/
+// este ticket no soporta que el usuario pueda cerrar el ticket solo los admins (por ahora)
 async function ticketHandler(interaction, client, redis) {
 
     const prefixLog = `[interactionCreate-TicketHandler] `;
@@ -18,14 +46,10 @@ async function ticketHandler(interaction, client, redis) {
     // estructura de ticket postulacion(application) : ticket:apply:action:applyId
     if (type === 'apply') {
         const action = args[2]; // create, close, claim, approve, reject
-        // si es history, no necesitamos el applyId
-        // esta acción es para enviar el historial del ticket al canal de logs
-        if (action === 'history') {
-            const historyPath = args[3];
-            await sendTicketHistory(interaction, historyPath);
-            return 
-        }
         const applyId = args[3];
+        if (action === 'history' && args.length < 5) {
+            await interaction.reply({ content: `ERROR: no es posible leer este ticket, porque la versión de guardado de este ticket es incompatible con la versión actual del bot.`, ephemeral: true });
+        }
         const guildId = interaction.guildId;
         const configApply = await getSimpleRedisJson({ redis, type: `ticket:apply:${guildId}`, UID: applyId });
         if (!configApply) return
@@ -59,6 +83,10 @@ async function ticketHandler(interaction, client, redis) {
         }
         else if (action === 'reject_modal') {
             await rejectModalTicketApplication(interaction, client, redis, configApply);
+        }
+        else if (action === 'history') {
+            const historyPath = args[4];
+            await sendTicketHistory(interaction, historyPath);
         }
     }
 
@@ -426,18 +454,10 @@ async function rejectTicketApplication(interaction, client, redis, configApply) 
     });
     dataTicket.status = 'rejected';
     await saveSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: dataTicket.authorId, json: dataTicket });
-    const historyPath = await saveHistory(interaction.channel);
+
+
     // mandar log al canal de logs
-    if (channelLogs){
-        const embedLog = generateEmbedLog({ action: 'reject', dataTicket, reason: rejectReason, userStaffID: interaction.user.id, historyPath: historyPath });
-        const row2= new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setLabel('Ver historial del ticket')
-                .setStyle(ButtonStyle.Primary)
-                .setCustomId(`ticket:apply:history:${historyPath}`)
-        );
-        await channelLogs.send({ embeds: [embedLog], components: [row2] });
-    }
+    await sendAndSaveLogTicket({interaction:interaction, channelLogs: channelLogs, reason: rejectReason, userStaffID: interaction.user.id, applyId: configApply.nombreclave, dataTicket:dataTicket});
     redis.del(`ticket:${channel.id}:author`); // eliminar referencia al canal pero no el dataTicket
     await channel.delete('Ticket cerrado por rechazo de postulación');
     return;
@@ -501,24 +521,13 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
             console.log(`[ticketHandler] No se pudo encontrar al usuario ${dataTicket.authorId} para enviarle el motivo de cierre.`);
         }
     }
-    // antes de borrar guardar el historial del canal en un archivo
-    const historyPath = await saveHistory(interaction.channel);
-    await redis.del(`ticket:${interaction.channel.id}:author`);
-    await redis.hdel(`databot:ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, dataTicket.authorId);
     // eliminar canal
     const channel = interaction.channel;
     // mandar log al canal de logs
-    if (channelLogs ){
-        const reason = dataTicket.status === 'approved' ? 'Postulación aprobada previamente' : closeReason;
-        const embedLog = generateEmbedLog({ action: 'close', dataTicket, reason: reason, userStaffID: interaction.user.id, historyPath: historyPath },);
-        const row2= new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setLabel('Ver historial del ticket')
-                .setStyle(ButtonStyle.Primary)
-                .setCustomId(`ticket:apply:history:${historyPath}`)
-        );
-        await channelLogs.send({ embeds: [embedLog], components: [row2] });
-    }
+    await sendAndSaveLogTicket({interaction:interaction, channelLogs: channelLogs, reason: closeReason, userStaffID: interaction.user.id, applyId: configApply.nombreclave, dataTicket: dataTicket});
+
+    await redis.del(`ticket:${interaction.channel.id}:author`);
+    await redis.hdel(`databot:ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, dataTicket.authorId);
     
     await channel.delete('Ticket cerrado');
     return;
@@ -920,3 +929,19 @@ async function sendTicketHistory(interaction, historyPath, prefixLog = '[sendTic
     return;
 }
     
+
+async function sendAndSaveLogTicket({interaction, channelLogs, reason, userStaffID, interactionID, applyId, dataTicket}) {
+    // Implementation for sending and saving ticket log
+    const historyPath = await saveHistory(interaction.channel);
+    // mandar log al canal de logs
+    if (channelLogs){
+        const embedLog = generateEmbedLog({ action: 'reject', dataTicket, reason: reason, userStaffID: interaction.user.id, historyPath: historyPath });
+        const row2= new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setLabel('Ver historial del ticket')
+                .setStyle(ButtonStyle.Primary)
+                .setCustomId(`ticket:apply:history:${applyId}:${historyPath}`)
+        );
+        await channelLogs.send({ embeds: [embedLog], components: [row2] });
+    }
+}
