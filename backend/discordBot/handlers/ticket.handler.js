@@ -98,6 +98,7 @@ async function ticketHandler(interaction, client, redis) {
 module.exports = { ticketHandler };
 
 async function createTicketApplication(interaction, client, redis, configApply) {
+    const prefixLog = `[createTicketApplication] `;
     const oldDataTicket = await getSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: interaction.user.id });
     //   revisar si ya tiene un ticket abierto
     if (oldDataTicket && oldDataTicket.status !== 'closed') {
