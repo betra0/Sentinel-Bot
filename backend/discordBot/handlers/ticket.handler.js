@@ -177,7 +177,7 @@ async function createTicketApplication(interaction, client, redis, configApply) 
 
     }
     catch (error) {
-        console.error(`${prefixLog} Error al enviar mensaje de confirmación de ticket: ${error.message}`);
+        console.error(`${prefixLog} Error al enviar mensaje de confirmación de ticket: `, error);
     }
 
     if (formText){
