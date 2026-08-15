@@ -8,23 +8,23 @@ services:
       dockerfile: Dockerfile        
     restart: unless-stopped               
     environment:
-      - BOTDSTOKEN=${BOTDSTOKEN}   # Token del bot
-      - INTENTSDS=${INTENTSDS}     # Intenciones necesarias para el bot
+      - BOTDSTOKEN=${BOTDSTOKEN}  
+      - INTENTSDS=${INTENTSDS}     
       - REDISHOST=redis           
       - REDISPORT=6379             
     depends_on: 
       - redis    
     volumes:
-    - ./backend/ticket-history:/app/data/ticket-history       
-    networks:                    # Conexión a la red back-network
-      - back-network   
+    - ./backend/ticket-history:/app/data/ticket-history
+    networks:
+      - back-network
 
   redis:
      image: redis:latest
      restart: unless-stopped
      command: ["redis-server", "--appendonly", "yes"]
      ports:
-        - "6383:6379"               # Exponer el puerto 6379
+        - "6383:6379"
      volumes:
        - redis_data:/data
      networks:
