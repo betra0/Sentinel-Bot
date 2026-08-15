@@ -670,6 +670,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
         .addFields(
             { name: 'ID del Ticket:', value: `${dataTicket.channelId}`, inline: true },
             {name: 'ID del Postulante:', value: `${dataTicket.authorId}`, inline: true },
+            { name: 'nombre del postulante:', value: `${dataTicket.authorTag}`, inline: true },
             { name: 'Postulante:', value: `<@${dataTicket.authorId}>`, inline: true },
             { name: 'Motivo:', value: `${reason}`, inline: true },
             { name: `Ticket reclamado${reclamado ? ' por' : ''}:`, value: reclamado ? `<@${reclamado}>` : 'No', inline: true },
