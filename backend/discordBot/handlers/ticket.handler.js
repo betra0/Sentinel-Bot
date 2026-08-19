@@ -84,6 +84,9 @@ async function ticketHandler(interaction, client, redis) {
         else if (action === 'reject_modal') {
             await rejectModalTicketApplication(interaction, client, redis, configApply);
         }
+        else if (action === 'options'){
+            await optionsTicketApplication(interaction, client, redis, configApply);
+        }
         else if (action === 'history') {
             const historyPath = args[4];
             await sendTicketHistory(interaction, historyPath);
@@ -159,7 +162,7 @@ async function createTicketApplication(interaction, client, redis, configApply) 
 
     const embed = await generateAdminEmbedTicket(interaction, interaction.user, ticketData, configApply);
 
-    const row = await generateRowTicketButtons( configApply, ticketData);
+    const row = await generateRowGoblalButton( configApply, ticketData);
     
     const mainMessage = await newTicketChannel.send({
         content: `${metionsStr}`,
@@ -295,7 +298,7 @@ async function claimTicketApplication(interaction, client, redis, configApply) {
     }
         
     const embed = await generateAdminEmbedTicket(interaction, member.user, dataTicket, configApply);
-    const row = await generateRowTicketButtons( configApply, dataTicket);
+    const row = await generateRowGoblalButton( configApply, dataTicket);
     const channel = interaction.channel;
     const idMainMessage = dataTicket.mainMessageId;
     if (!idMainMessage){
@@ -384,7 +387,7 @@ async function approveTicketApplication(interaction, client, redis, configApply)
 
     const userTicket = member.user;
     const embedMain = await generateAdminEmbedTicket(interaction, userTicket, dataTicket, configApply);
-    const rowMain = await generateRowTicketButtons( configApply, dataTicket);
+    const rowMain = await generateRowGoblalButton( configApply, dataTicket);
     const channel = interaction.channel;
     const idMainMessage = dataTicket.mainMessageId;
     if (!idMainMessage){
@@ -560,6 +563,37 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     return;
 }
 
+async function optionsTicketApplication(interaction, client, redis, configApply) {
+    await interaction.deferUpdate();
+    let dataTicket;
+    try {
+        dataTicket = await logicCheckInTicketApplication(interaction, client, redis, configApply);
+    }catch (error) {
+        if (error.isControlled) {
+            console.log(`[ticketHandler] closeTicketApplication controlled error: ${error.message}`);
+            await interaction.followUp({ content: error.message, ephemeral: true });
+            return;
+        } else {
+            throw error;
+        }
+    }
+    if (!dataTicket) {
+        return;
+    }
+    console.log(`[ticketHandler] optionsTicketApplication invoked by user ${interaction.user.id} in channel ${interaction.channel.id}`);
+
+    const row = await generateRowTicketButtons( configApply, dataTicket);
+    const embedoptions = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setTitle(`Opciones de Administracion`)
+        .setDescription('Opciones de administración del ticket');
+
+    await interaction.followUp({ content:`<@${interaction.user.id}>`, embeds: [embedoptions], components: [row], ephemeral: true });
+
+
+
+
+}
 
 
 
@@ -676,6 +710,23 @@ async function generateRowTicketButtons(configApply, dataTicket) {
     
     return row;
 }
+
+async function generateRowGoblalButton(
+    configApply, dataTicket
+){
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`ticket:apply:options:${configApply.nombreclave}`)
+            .setLabel('Opciones')
+            .setEmoji('⚙️')
+            .setStyle(ButtonStyle.Primary)
+
+    );
+    
+    return row;
+}
+
 
 const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, historyPath=null 
 
