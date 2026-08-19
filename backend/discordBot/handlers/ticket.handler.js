@@ -278,7 +278,22 @@ async function claimTicketApplication(interaction, client, redis, configApply) {
         return;
     }
     dataTicket.claimedBy = interaction.user.id;
-    const member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+    let member;
+    try {
+        member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+        
+
+    }catch (error) {
+        if(error.code === 10007) {
+            const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+            console.error(`[ticketHandler] claimTicketApplication error: ${m}`);
+            await interaction.followUp({ content: m, ephemeral: true });
+            return;
+        }
+        console.error(error);
+        throw error;
+    }
+        
     const embed = await generateAdminEmbedTicket(interaction, member.user, dataTicket, configApply);
     const row = await generateRowTicketButtons( configApply, dataTicket);
     const channel = interaction.channel;
@@ -317,10 +332,20 @@ async function approveTicketApplication(interaction, client, redis, configApply)
         await interaction.followUp({ content: `ERROR: No hay un rol configurado para asignar en esta postulación.`, ephemeral: true });
         return;
     }
-    const member = await interaction.guild.members.fetch(dataTicket.authorId);
-    if (!member) {
-        await interaction.followUp({ content: `ERROR: No se pudo encontrar al miembro para asignar el rol.`, ephemeral: true });
-        return;
+    let member;
+    try {
+        member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+        
+
+    }catch (error) {
+        if(error.code === 10007) {
+            const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+            console.error(`[ticketHandler] claimTicketApplication error: ${m}`);
+            await interaction.followUp({ content: m, ephemeral: true });
+            return;
+        }
+        console.error(error);
+        throw error;
     }
     const strMesageOnApprove = configApply.MessagePostApproveStr || ''
     const channelLogs = configApply.channelForLogsId ? await interaction.guild.channels.fetch( configApply.channelForLogsId) : null;
@@ -587,6 +612,8 @@ async function logicCheckInTicketApplication(interaction, client, redis, configA
     }
     return dataTicket;
 }
+
+// es el embed que se miestra arriba del ticket, con la info del ticket y el usuario
 async function generateAdminEmbedTicket(interaction, userTicket, dataTicket, configApply) {
     const rolApplyName= configApply.roleToAssign ? `<@&${configApply.roleToAssign}>` : 'Ninguno';
     const reclamado= dataTicket.claimedBy ? `<@${dataTicket.claimedBy}>` : 'No';
