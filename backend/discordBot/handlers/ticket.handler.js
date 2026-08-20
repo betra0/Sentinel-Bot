@@ -6,6 +6,7 @@ const { TextInputBuilder, TextInputStyle } = require('discord.js');
 const { findAndEditMessageText } = require('../services/findAndEditMessageText');
 const fs = require('fs/promises');
 const path = require('path');
+const { MessageFlags } = require('discord.js');
 
 
 //
@@ -585,10 +586,27 @@ async function optionsTicketApplication(interaction, client, redis, configApply)
     const row = await generateRowTicketButtons( configApply, dataTicket);
     const embedoptions = new EmbedBuilder()
         .setColor(0x5865F2)
-        .setTitle(`Opciones de Administracion`)
-        .setDescription('Opciones de administración del ticket');
+        .setTitle(`Opciones de Administración`)
+        .setDescription('⚙️ Selecciona una opción a continuación.\n\n⏳ Este panel se eliminará automáticamente en **20 segundos**.');
 
-    await interaction.followUp({ content:`<@${interaction.user.id}>`, embeds: [embedoptions], components: [row], ephemeral: true });
+    const message = await interaction.followUp({ 
+        content:`<@${interaction.user.id}>`, 
+        embeds: [embedoptions], 
+        components: [row],     
+        flags: MessageFlags.Ephemeral,
+        fetchReply: true 
+    });
+    
+    setTimeout(async () => {
+        console.log('Intentando borrar Ephemeral Message');
+        try {
+            await interaction.webhook.deleteMessage(message.id);
+            console.log('Borrado correctamente');
+        } catch (error) {
+            console.error('Error borrando followUp:', error);
+        }
+    }, 20 * 1000);
+
 
 
 
