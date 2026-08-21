@@ -26,17 +26,12 @@ services:
      ports:
         - "6383:6379"               # Exponer el puerto 6379
      volumes:
-       - redis_data:/data
+       - ./backend/redis/data:/data
      networks:
        - back-network
   
-
-    
     
 
 networks:
   back-network:
     driver: bridge
-
-volumes:
-  redis_data:
