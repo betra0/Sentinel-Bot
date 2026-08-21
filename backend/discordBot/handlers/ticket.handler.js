@@ -638,9 +638,9 @@ async function cancelApproveTicketApplication(interaction, client, redis, config
    
     //7. avisar por el canal del ticket
     const embedC = new EmbedBuilder()
-        .setColor('#ff0d00') 
-        .setTitle(`cancelando aprobación de postulación`)
-        .setDescription(`se ha cancelado la aprobación del ticket`);
+        .setColor('#ff0d00')
+        .setTitle('Aprobación de postulación revertida')
+        .setDescription('La aprobación de la postulación ha sido revertida.');
     await interaction.followUp({ content: '', embeds: [embedC] });
 
 
@@ -887,7 +887,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
         reject : ['rechazado', 'rechazada', '#FF0000'],
         approve: ['aprobado', 'aprobada', '#00FF00'],
         close: ['cerrado', 'cerrada', '#FFA500'],
-        cancel_approve: ['cancelado', 'cancelada', '#FF00FF'],
+        cancel_approve: ['revertido', 'revertida', '#FF00FF'],
     }
     const strhistoryPath = historyPath ? `${historyPath}` : (action !== 'close' ? `aún abierto →<#${dataTicket.channelId}>` : 'No Disponible');
 
