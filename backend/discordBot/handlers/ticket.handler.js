@@ -216,7 +216,8 @@ async function closeTicketApplication(interaction, client, redis, configApply) {
         return;
     }
     console.log(`[ticketHandler] closeTicketApplication invoked by user ${interaction.user.id} in channel ${interaction.channel.id}`);
-    if (dataTicket.authorId === interaction.user.id) {
+    // revisa si el que seleciono cerrar el ticket es el autor del ticket y si no es admin o staff 
+    if (dataTicket.authorId === interaction.user.id && !isAdminOrStaff(interaction, configApply)) {
         if (dataTicket.status !=='approved'){
             await interaction.reply({ content: `No puedes cerrar el ticket hasta que tu postulación sea aprobada o rechazada.`, ephemeral: true });
             return;
@@ -716,16 +717,22 @@ async function getReferenceTicket(redis, channelId) {
     return authorId;
     
 }
-async function logicCheckInTicketApplication(interaction, client, redis, configApply, ignoreRoles=false) {
-    if (!ignoreRoles){
-        const hasAnyRole = configApply.staffAurthorityRoles
+function isAdminOrStaff(interaction, configApply) {
+    const hasAnyRole = configApply.staffAurthorityRoles
         .some(roleId => interaction.member.roles.cache.has(roleId));
-        if (!hasAnyRole && !interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    if (hasAnyRole || interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) {
+        return true;
+    }
+    return false;
+}
+async function logicCheckInTicketApplication(interaction, client, redis, configApply, ignoreRoles=false) {
+
+    if (!ignoreRoles && !isAdminOrStaff(interaction, configApply)) {
             const err =new Error('No tienes permisos para gestionar este ticket.');
             err.code = 'TICKET_ERROR';
             err.isControlled = true;
             throw err;
-        }
+        
     }
 
     const dataTicket = await getDataTicket(redis, interaction.channel, configApply.nombreclave);
