@@ -848,7 +848,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
         close: ['cerrado', 'cerrada', '#FFA500'],
         cancel_approve: ['cancelado', 'cancelada', '#FF00FF'],
     }
-
+    const strhistoryPath = historyPath ? `${historyPath}` : (action !== 'close' ? `aún abierto →<#${dataTicket.channelId}>` : 'No Disponible');
 
     const embedLog = new EmbedBuilder()
         .setColor(dialog[action][2])
@@ -861,7 +861,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
             { name: 'Postulante:', value: `<@${dataTicket.authorId}>`, inline: true },
             { name: 'Motivo:', value: `${reason}`, inline: true },
             { name: `Ticket reclamado${reclamado ? ' por' : ''}:`, value: reclamado ? `<@${reclamado}>` : 'No', inline: true },
-            { name: 'historial del ticket:', value: historyPath ? `${historyPath}` : 'No disponible', inline: true },
+            { name: 'historial del ticket:', value: strhistoryPath, inline: true },
         )
         .setTimestamp();
 
