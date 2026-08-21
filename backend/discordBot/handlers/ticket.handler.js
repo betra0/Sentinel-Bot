@@ -92,6 +92,9 @@ async function ticketHandler(interaction, client, redis) {
             const historyPath = args[4];
             await sendTicketHistory(interaction, historyPath);
         }
+        else if (action === 'cancel_approve') {
+            await cancelApproveTicketApplication(interaction, client, redis, configApply);
+        }
     }
 
 
@@ -563,6 +566,67 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     await channel.delete('Ticket cerrado');
     return;
 }
+async function cancelApproveTicketApplication(interaction, client, redis, configApply) {
+    await interaction.deferUpdate();
+    let dataTicket;
+    try {
+        dataTicket = await logicCheckInTicketApplication(interaction, client, redis, configApply);
+    }catch (error) {
+        if (error.isControlled) {
+            console.log(`[ticketHandler] cancelApproveTicketApplication controlled error: ${error.message}`);
+            await interaction.followUp({ content: error.message, ephemeral: true });
+            return;
+        } else {
+            throw error;
+        }
+    }
+    if (!dataTicket) {
+        return;
+    }
+    console.log(`[ticketHandler] cancelApproveTicketApplication invoked by user ${interaction.user.id} in channel ${interaction.channel.id}`);
+
+    let member;
+    try {
+        member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+    }catch (error) {
+        if(error.code === 10007) {
+            const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+            console.error(`[ticketHandler] cancelApproveTicketApplication error: ${m}`);
+            await interaction.followUp({ content: m, ephemeral: true });
+            return;
+        }
+        console.error(error);
+        throw error;
+    }
+    
+    // 1. remover rol al usuario
+    if (!configApply.roleToAssign) {
+        await interaction.followUp({ content: `ERROR: No hay un rol configurado para asignar en esta postulación.`, ephemeral: true });
+        return;
+    }
+    await member.roles.remove(configApply.roleToAssign, 'Cancelación de aprobación de postulación');
+    // 2. cambiar status a open
+    dataTicket.status = 'open';
+    // 3. actualizar embed principal
+    const userTicket = member.user;
+    const embedMain = await generateAdminEmbedTicket(interaction, userTicket, dataTicket, configApply);
+    const rowMain = await generateRowGoblalButton( configApply, dataTicket);
+    const channel = interaction.channel;
+    const idMainMessage = dataTicket.mainMessageId;
+    if (!idMainMessage){
+        await interaction.followUp({ content: `ERROR: No se encontró el mensaje principal del ticket.`, ephemeral: true });
+        return;
+    }
+    await findAndEditMessageText(interaction.client, channel.id, idMainMessage, { embeds: [embedMain], components: [rowMain] })
+    // 4 .cambiar nombre del canal
+    await channel.edit({
+        name: `ticket-${member.user.username}`,
+        reason: `Cancelación de aprobación de postulación para user ${member.user.username} (${member.user.id})` 
+    });
+    // 5. guardar en redis
+    await saveSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: dataTicket.authorId, json: dataTicket });
+
+}
 
 async function optionsTicketApplication(interaction, client, redis, configApply) {
     await interaction.deferUpdate();
@@ -704,6 +768,13 @@ async function generateRowTicketButtons(configApply, dataTicket) {
                 .setCustomId(`ticket:apply:approve:${configApply.nombreclave}`)
                 .setLabel('Aprobar')
                 .setStyle(ButtonStyle.Success)
+        );
+    }else if(dataTicket.status === 'approved') {
+        components.push(
+            new ButtonBuilder()
+                .setCustomId(`ticket:apply:cancel_approve:${configApply.nombreclave}`)
+                .setLabel('cancelar aprobación')
+                .setStyle(ButtonStyle.Danger)
         );
     }
     if (dataTicket.status !=='approved'){
