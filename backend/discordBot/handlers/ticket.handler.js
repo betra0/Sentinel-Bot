@@ -635,7 +635,7 @@ async function optionsTicketApplication(interaction, client, redis, configApply)
         dataTicket = await logicCheckInTicketApplication(interaction, client, redis, configApply);
     }catch (error) {
         if (error.isControlled) {
-            console.log(`[ticketHandler] closeTicketApplication controlled error: ${error.message}`);
+            console.log(`[ticketHandler] optionsTicketApplication controlled error: ${error.message}`);
             await interaction.followUp({ content: error.message, ephemeral: true });
             return;
         } else {
