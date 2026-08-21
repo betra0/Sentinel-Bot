@@ -666,15 +666,12 @@ async function optionsTicketApplication(interaction, client, redis, configApply)
     }
     console.log(`[ticketHandler] optionsTicketApplication invoked by user ${interaction.user.id} in channel ${interaction.channel.id}`);
 
-    const row = await generateRowTicketButtons( configApply, dataTicket);
-    const embedoptions = new EmbedBuilder()
-        .setColor(0x5865F2)
-        .setTitle(`Opciones de Administración`)
-        .setDescription('⚙️ Selecciona una opción a continuación.\n\n⏳ Este panel se eliminará automáticamente en **20 segundos**.');
+    const { row, embed } = await generateRowAndEmbedTicketButtons( configApply, dataTicket);
+    
 
     const message = await interaction.followUp({ 
         content:`<@${interaction.user.id}>`, 
-        embeds: [embedoptions], 
+        embeds: [embed], 
         components: [row],     
         flags: MessageFlags.Ephemeral,
         fetchReply: true 
@@ -770,53 +767,97 @@ async function generateAdminEmbedTicket(interaction, userTicket, dataTicket, con
     return embed;
 }
 
-async function generateRowTicketButtons(configApply, dataTicket) {
+async function generateRowAndEmbedTicketButtons(configApply, dataTicket) {
+    const descriptions = [
+        '⚙️ Selecciona una opción a continuación.\n'
+    ];
     const components = [];
+
     if (!dataTicket.claimedBy) {
-        // ticket reclamado
         components.push(
             new ButtonBuilder()
                 .setCustomId(`ticket:apply:claim:${configApply.nombreclave}`)
                 .setLabel('Reclamar Ticket')
+                .setEmoji('🎫')
                 .setStyle(ButtonStyle.Primary),
         );
+
+        descriptions.push(
+            '🎫 **Reclamar Ticket** — Asigna el ticket al administrador que lo está gestionando.'
+        );
     }
-    else if(dataTicket.status !== 'approved') {
+
+    if (dataTicket.claimedBy && dataTicket.status !== 'approved') {
         components.push(
             new ButtonBuilder()
                 .setCustomId(`ticket:apply:approve:${configApply.nombreclave}`)
                 .setLabel('Aprobar')
+                .setEmoji('✅')
                 .setStyle(ButtonStyle.Success)
         );
-    }else if(dataTicket.status === 'approved') {
+
+        descriptions.push(
+            '✅ **Aprobar** — Aprueba la postulación del usuario.'
+        );
+    }
+
+    if (dataTicket.status === 'approved') {
         components.push(
             new ButtonBuilder()
                 .setCustomId(`ticket:apply:cancel_approve:${configApply.nombreclave}`)
-                .setLabel('cancelar aprobación')
+                .setLabel('Cancelar Aprobación')
+                .setEmoji('↩️')
                 .setStyle(ButtonStyle.Danger)
         );
+
+        descriptions.push(
+            '↩️ **Cancelar Aprobación** — Revierte una aprobación realizada anteriormente.'
+        );
     }
-    if (dataTicket.status !=='approved'){
+
+    if (dataTicket.status !== 'approved') {
         components.push(
             new ButtonBuilder()
                 .setCustomId(`ticket:apply:reject:${configApply.nombreclave}`)
                 .setLabel('Rechazar')
+                .setEmoji('❌')
                 .setStyle(ButtonStyle.Danger),
+        );
+
+        descriptions.push(
+            '❌ **Rechazar** — Rechaza la postulación del usuario.'
         );
     }
 
+    // Cerrar Ticket siempre está disponible
+    const closeButton = new ButtonBuilder()
+        .setCustomId(`ticket:apply:close:${configApply.nombreclave}`)
+        .setLabel('Cerrar Ticket')
+        .setEmoji('🔒')
+        .setStyle(ButtonStyle.Danger);
 
+    components.unshift(closeButton);
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`ticket:apply:close:${configApply.nombreclave}`)
-            .setLabel('Cerrar Ticket')
-            .setStyle(ButtonStyle.Danger),
-
-        ...components
+    descriptions.push(
+        '🔒 **Cerrar Ticket** — Cierra y finaliza el ticket.'
     );
-    
-    return row;
+
+    descriptions.push(
+        '\n⏳ Este panel se eliminará automáticamente en **20 segundos**.'
+    );
+
+    const embedoptions = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setTitle('Opciones de Administración')
+        .setDescription(descriptions.join('\n'));
+
+    const row = new ActionRowBuilder()
+        .addComponents(...components);
+
+    return {
+        embed: embedoptions,
+        row: row
+    };
 }
 
 async function generateRowGoblalButton(
