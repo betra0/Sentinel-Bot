@@ -850,9 +850,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
 
 async function saveHistory(channel) {
     console.log(`[saveHistory] Iniciando guardado del historial.`);
-    console.log(`[saveHistory] Channel ID: ${channel.id}`);
-    console.log(`[saveHistory] Channel name: ${channel.name}`);
-    console.log(`[saveHistory] process.cwd(): ${process.cwd()}`);
+    console.log(`[saveHistory] Channel ID: ${channel.id}, Name: ${channel.name}`);
 
     const messages = [];
     let lastId = null;
@@ -867,22 +865,13 @@ async function saveHistory(channel) {
             options.before = lastId;
         }
 
-        console.log(
-            `[saveHistory] Obteniendo batch #${batchNumber + 1}` +
-            `${lastId ? ` antes del mensaje ${lastId}` : ''}...`
-        );
 
         const batch = await channel.messages.fetch(options);
 
         batchNumber++;
 
-        console.log(
-            `[saveHistory] Batch #${batchNumber} obtenido. ` +
-            `Mensajes encontrados: ${batch.size}`
-        );
 
         if (batch.size === 0) {
-            console.log(`[saveHistory] No quedan más mensajes.`);
             break;
         }
 
@@ -903,21 +892,11 @@ async function saveHistory(channel) {
             });
         }
 
-        console.log(
-            `[saveHistory] Mensajes acumulados: ${messages.length}`
-        );
 
         lastId = batch.last().id;
 
-        console.log(
-            `[saveHistory] Último mensaje del batch: ${lastId}`
-        );
 
         if (batch.size < 100) {
-            console.log(
-                `[saveHistory] Batch menor a 100 mensajes. ` +
-                `Finalizando búsqueda.`
-            );
             break;
         }
     }
@@ -934,27 +913,18 @@ async function saveHistory(channel) {
         'ticket-history'
     );
 
-    console.log(
-        `[saveHistory] Directorio de historial: ${directory}`
-    );
 
     try {
         await fs.mkdir(directory, {
             recursive: true
         });
 
-        console.log(
-            `[saveHistory] Directorio creado/verificado correctamente: ${directory}`
-        );
 
         const filePath = path.join(
             directory,
             `${channel.id}.json`
         );
 
-        console.log(
-            `[saveHistory] Ruta final del archivo: ${filePath}`
-        );
 
         await fs.writeFile(
             filePath,
