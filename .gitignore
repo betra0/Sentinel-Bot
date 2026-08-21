@@ -33,3 +33,4 @@ venvF
 *.orig
 
 backend/ticket-history
+backend/redis/data
