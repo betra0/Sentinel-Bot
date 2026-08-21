@@ -223,6 +223,11 @@ async function closeTicketApplication(interaction, client, redis, configApply) {
             return;
         }
         else if (dataTicket.status === 'approved') {
+            //  =========== quirtar este fragmento cuando se habilite que el autor pueda cerrar el ticket despues de aprobado////
+
+            await interaction.reply({ content: 'Opción no disponible. Un miembro del staff debe cerrar el ticket.', ephemeral: true });
+
+            //=============
             console.log(`[ticketHandler] Ticket ya aprobado, cerrando directamente.`);
             const embed = new EmbedBuilder()
             .setColor('#FF0000')
