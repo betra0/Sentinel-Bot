@@ -623,8 +623,27 @@ async function cancelApproveTicketApplication(interaction, client, redis, config
         name: `ticket-${member.user.username}`,
         reason: `Cancelación de aprobación de postulación para user ${member.user.username} (${member.user.id})` 
     });
-    // 5. guardar en redis
+    // 5. guadar un log en el canal de logs
+    const channelLogs = configApply.channelForLogsId ? await interaction.guild.channels.fetch( configApply.channelForLogsId) : null;
+        await findAndEditMessageText(interaction.client, channel.id, idMainMessage, { embeds: [embedMain], components: [rowMain] })
+    if (channelLogs){
+        const reason = 'Cancelación de aprobación de postulación';
+        const embedLog = generateEmbedLog({ action: 'cancel_approve', dataTicket, reason: reason, userStaffID: interaction.user.id });
+        await channelLogs.send({ embeds: [embedLog] });
+    }
+    
+    // 6. guardar en redis
     await saveSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: dataTicket.authorId, json: dataTicket });
+   
+   
+    //7. avisar por el canal del ticket
+    const embedC = new EmbedBuilder()
+        .setColor('#ff0d00') 
+        .setTitle(`cancelando aprobación de postulación`)
+        .setDescription(`se ha cancelado la aprobación del ticket`);
+    await interaction.followUp({ content: '', embeds: [embedC] });
+
+
 
 }
 
@@ -827,6 +846,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
         reject : ['rechazado', 'rechazada', '#FF0000'],
         approve: ['aprobado', 'aprobada', '#00FF00'],
         close: ['cerrado', 'cerrada', '#FFA500'],
+        cancel_approve: ['cancelado', 'cancelada', '#FF00FF'],
     }
 
 
