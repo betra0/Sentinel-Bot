@@ -6,6 +6,7 @@ const { TextInputBuilder, TextInputStyle } = require('discord.js');
 const { findAndEditMessageText } = require('../services/findAndEditMessageText');
 const fs = require('fs/promises');
 const path = require('path');
+const { MessageFlags } = require('discord.js');
 
 
 //
@@ -84,6 +85,9 @@ async function ticketHandler(interaction, client, redis) {
         else if (action === 'reject_modal') {
             await rejectModalTicketApplication(interaction, client, redis, configApply);
         }
+        else if (action === 'options'){
+            await optionsTicketApplication(interaction, client, redis, configApply);
+        }
         else if (action === 'history') {
             const historyPath = args[4];
             await sendTicketHistory(interaction, historyPath);
@@ -159,7 +163,7 @@ async function createTicketApplication(interaction, client, redis, configApply) 
 
     const embed = await generateAdminEmbedTicket(interaction, interaction.user, ticketData, configApply);
 
-    const row = await generateRowTicketButtons( configApply, ticketData);
+    const row = await generateRowGoblalButton( configApply, ticketData);
     
     const mainMessage = await newTicketChannel.send({
         content: `${metionsStr}`,
@@ -278,9 +282,24 @@ async function claimTicketApplication(interaction, client, redis, configApply) {
         return;
     }
     dataTicket.claimedBy = interaction.user.id;
-    const member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+    let member;
+    try {
+        member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+        
+
+    }catch (error) {
+        if(error.code === 10007) {
+            const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+            console.error(`[ticketHandler] claimTicketApplication error: ${m}`);
+            await interaction.followUp({ content: m, ephemeral: true });
+            return;
+        }
+        console.error(error);
+        throw error;
+    }
+        
     const embed = await generateAdminEmbedTicket(interaction, member.user, dataTicket, configApply);
-    const row = await generateRowTicketButtons( configApply, dataTicket);
+    const row = await generateRowGoblalButton( configApply, dataTicket);
     const channel = interaction.channel;
     const idMainMessage = dataTicket.mainMessageId;
     if (!idMainMessage){
@@ -317,10 +336,20 @@ async function approveTicketApplication(interaction, client, redis, configApply)
         await interaction.followUp({ content: `ERROR: No hay un rol configurado para asignar en esta postulación.`, ephemeral: true });
         return;
     }
-    const member = await interaction.guild.members.fetch(dataTicket.authorId);
-    if (!member) {
-        await interaction.followUp({ content: `ERROR: No se pudo encontrar al miembro para asignar el rol.`, ephemeral: true });
-        return;
+    let member;
+    try {
+        member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+        
+
+    }catch (error) {
+        if(error.code === 10007) {
+            const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+            console.error(`[ticketHandler] claimTicketApplication error: ${m}`);
+            await interaction.followUp({ content: m, ephemeral: true });
+            return;
+        }
+        console.error(error);
+        throw error;
     }
     const strMesageOnApprove = configApply.MessagePostApproveStr || ''
     const channelLogs = configApply.channelForLogsId ? await interaction.guild.channels.fetch( configApply.channelForLogsId) : null;
@@ -359,7 +388,7 @@ async function approveTicketApplication(interaction, client, redis, configApply)
 
     const userTicket = member.user;
     const embedMain = await generateAdminEmbedTicket(interaction, userTicket, dataTicket, configApply);
-    const rowMain = await generateRowTicketButtons( configApply, dataTicket);
+    const rowMain = await generateRowGoblalButton( configApply, dataTicket);
     const channel = interaction.channel;
     const idMainMessage = dataTicket.mainMessageId;
     if (!idMainMessage){
@@ -535,6 +564,54 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     return;
 }
 
+async function optionsTicketApplication(interaction, client, redis, configApply) {
+    await interaction.deferUpdate();
+    let dataTicket;
+    try {
+        dataTicket = await logicCheckInTicketApplication(interaction, client, redis, configApply);
+    }catch (error) {
+        if (error.isControlled) {
+            console.log(`[ticketHandler] closeTicketApplication controlled error: ${error.message}`);
+            await interaction.followUp({ content: error.message, ephemeral: true });
+            return;
+        } else {
+            throw error;
+        }
+    }
+    if (!dataTicket) {
+        return;
+    }
+    console.log(`[ticketHandler] optionsTicketApplication invoked by user ${interaction.user.id} in channel ${interaction.channel.id}`);
+
+    const row = await generateRowTicketButtons( configApply, dataTicket);
+    const embedoptions = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setTitle(`Opciones de Administración`)
+        .setDescription('⚙️ Selecciona una opción a continuación.\n\n⏳ Este panel se eliminará automáticamente en **20 segundos**.');
+
+    const message = await interaction.followUp({ 
+        content:`<@${interaction.user.id}>`, 
+        embeds: [embedoptions], 
+        components: [row],     
+        flags: MessageFlags.Ephemeral,
+        fetchReply: true 
+    });
+    
+    setTimeout(async () => {
+        console.log('Intentando borrar Ephemeral Message');
+        try {
+            await interaction.webhook.deleteMessage(message.id);
+            console.log('Borrado correctamente');
+        } catch (error) {
+            console.error('Error borrando followUp:', error);
+        }
+    }, 20 * 1000);
+
+
+
+
+
+}
 
 
 
@@ -587,6 +664,8 @@ async function logicCheckInTicketApplication(interaction, client, redis, configA
     }
     return dataTicket;
 }
+
+// es el embed que se miestra arriba del ticket, con la info del ticket y el usuario
 async function generateAdminEmbedTicket(interaction, userTicket, dataTicket, configApply) {
     const rolApplyName= configApply.roleToAssign ? `<@&${configApply.roleToAssign}>` : 'Ninguno';
     const reclamado= dataTicket.claimedBy ? `<@${dataTicket.claimedBy}>` : 'No';
@@ -650,6 +729,23 @@ async function generateRowTicketButtons(configApply, dataTicket) {
     return row;
 }
 
+async function generateRowGoblalButton(
+    configApply, dataTicket
+){
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`ticket:apply:options:${configApply.nombreclave}`)
+            .setLabel('Opciones')
+            .setEmoji('⚙️')
+            .setStyle(ButtonStyle.Primary)
+
+    );
+    
+    return row;
+}
+
+
 const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, historyPath=null 
 
 }) => {
@@ -670,6 +766,7 @@ const generateEmbedLog = ({ action='reject', dataTicket, reason, userStaffID, hi
         .addFields(
             { name: 'ID del Ticket:', value: `${dataTicket.channelId}`, inline: true },
             {name: 'ID del Postulante:', value: `${dataTicket.authorId}`, inline: true },
+            { name: 'nombre del postulante:', value: `${dataTicket.authorTag}`, inline: true },
             { name: 'Postulante:', value: `<@${dataTicket.authorId}>`, inline: true },
             { name: 'Motivo:', value: `${reason}`, inline: true },
             { name: `Ticket reclamado${reclamado ? ' por' : ''}:`, value: reclamado ? `<@${reclamado}>` : 'No', inline: true },
