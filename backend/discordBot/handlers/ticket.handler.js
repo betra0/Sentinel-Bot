@@ -761,7 +761,7 @@ async function generateAdminEmbedTicket(interaction, userTicket, dataTicket, con
         { name: 'Reclamado:', value: `${reclamado}`, inline : true },
         { name: 'Creador del ticket:', value: `<@${userTicket.id}>`, inline: true },
         { name: 'Estado del ticket:', value: `${dataTicket.status}`, inline: true },
-        { name: 'Fecha de creación:', value: `<t:${dataTicket.createdAt}:F>`, inline: true },
+        { name: 'Fecha de creación:', value: `<t:${Math.floor(new Date(dataTicket.createdAt).getTime() / 1000)}:F>`, inline: true },
     )
     .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 512 }))
     .setAuthor({ name: `Staff Tickets`, iconURL: interaction.guild.iconURL({ dynamic: true }) })
