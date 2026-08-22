@@ -109,6 +109,11 @@ async function createTicketApplication(interaction, client, redis, configApply) 
     const oldDataTicket = await getSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: interaction.user.id });
     //   revisar si ya tiene un ticket abierto
     if (oldDataTicket && oldDataTicket.status !== 'closed') {
+        console.log(oldDataTicket)
+        if (oldDataTicket.status==='rejected'){
+            await interaction.reply({ content: `Tu postulación anterior fue rechazada. No puedes crear una nueva postulación en este momento.`, ephemeral: true }); 
+            return
+        }
         await interaction.reply({ content: `Ya tienes un ticket abierto para esta aplicación: <#${oldDataTicket.channelId}>`, ephemeral: true }); 
         return;
     }
