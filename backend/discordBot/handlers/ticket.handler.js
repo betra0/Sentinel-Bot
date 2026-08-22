@@ -481,21 +481,39 @@ async function rejectTicketApplication(interaction, client, redis, configApply) 
         return;
     }   
     const rejectReason = interaction.fields.getTextInputValue('reject_reason');
-    const user = await interaction.guild.members.fetch(dataTicket.authorId);
-    if (!user){
-        await interaction.followUp({ content: `ERROR: No se pudo encontrar al miembro para enviar el rechazo.`, ephemeral: true });
-        return;
-    }
-    const channelLogs = configApply.channelForLogsId ? await interaction.guild.channels.fetch( configApply.channelForLogsId) : null;
     const channel = interaction.channel;
-    const embed = new EmbedBuilder()
-    .setColor('#FF0000')
-    .setTitle('Postulación Rechazada')
-    .setDescription(`Lamentablemente tu postulación ha sido rechazada.\n\nMotivo: ${rejectReason}`)
-    .setTimestamp();
-    await user.send({ embeds: [embed] }).catch((err) => {
-        console.log(`[ticketHandler] No se pudo enviar mensaje directo al usuario ${dataTicket.authorId}: ${err.message}`);
-    });
+    let member;
+    try {
+        member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+    }catch (error) {
+        if(error.code === 10007) {
+            const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+            console.error(`[rejectModalTicketApplication] error: ${m}`);
+            await interaction.followUp({ content: `Warning: ${m}`, ephemeral: true });
+            member = null; 
+        }
+        else {
+            console.error(error);
+            throw error;
+        }
+    }
+
+    const channelLogs = configApply.channelForLogsId ? await interaction.guild.channels.fetch( configApply.channelForLogsId) : null;
+    if (member){
+        
+        const embed = new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('Postulación Rechazada')
+            .setDescription(`Lamentablemente tu postulación ha sido rechazada.\n\nMotivo: ${rejectReason}`)
+            .setTimestamp();
+        await member.send({ embeds: [embed] }).catch((err) => {
+            console.log(`[ticketHandler] No se pudo enviar mensaje directo al usuario ${dataTicket.authorId}: ${err.message}`);
+        });
+    }
+    else{
+        console.log(`[rejectModalTicketApplication] No se pudo encontrar al miembro con ID ${dataTicket.authorId} para enviarle el dm.`);
+        await interaction.followUp({ content: `Warning: No se pudo encontrar al miembro.`, ephemeral: true });
+    }
     dataTicket.status = 'rejected';
     await saveSimpleRedisJson({ redis, type: `ticket:apply:${interaction.guildId}:${configApply.nombreclave}`, UID: dataTicket.authorId, json: dataTicket });
 
@@ -551,18 +569,31 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     const channelLogs = configApply.channelForLogsId ? await interaction.guild.channels.fetch( configApply.channelForLogsId) : null;
 
     if (closeReason && closeReason.trim() !==''){
-        const user = await interaction.guild.members.fetch(dataTicket.authorId);
-        if (user){
-            embed = new EmbedBuilder()
-            .setColor('#FF0000')
-            .setTitle('Cierre de Ticket')
-            .setDescription(`Tu ticket ha sido cerrado por un miembro del staff.\n\nMotivo: ${closeReason}`)
-            .setTimestamp();
-            await user.send({ embeds: [embed] }).catch((err) => {
-                console.log(`[ticketHandler] No se pudo enviar mensaje directo al usuario ${dataTicket.authorId}: ${err.message}`);
-            });
-        }else{
-            console.log(`[ticketHandler] No se pudo encontrar al usuario ${dataTicket.authorId} para enviarle el motivo de cierre.`);
+        try {
+            member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
+            if (user){
+                embed = new EmbedBuilder()
+                    .setColor('#FF0000')
+                    .setTitle('Cierre de Ticket')
+                    .setDescription(`Tu ticket ha sido cerrado por un miembro del staff.\n\nMotivo: ${closeReason}`)
+                    .setTimestamp();
+                await user.send({ embeds: [embed] }).catch((err) => {
+                    console.log(`[ticketHandler] No se pudo enviar mensaje directo al usuario ${dataTicket.authorId}: ${err.message}`);
+                });
+            }else{
+                console.log(`[ticketHandler] No se pudo encontrar al usuario ${dataTicket.authorId} para enviarle el motivo de cierre.`);
+            }
+
+        }catch (error) {
+            if(error.code === 10007) {
+                const m = `No se pudo encontrar al miembro con ID ${dataTicket.authorId}. Es posible que haya abandonado el servidor. errorCode: ${error.code}`;
+                await interaction.followUp({ content: `Warning: ${m}`, ephemeral: true });
+                member = null; 
+            }
+            else {
+                console.error(error);
+                throw error;
+            }
         }
     }
     // eliminar canal
