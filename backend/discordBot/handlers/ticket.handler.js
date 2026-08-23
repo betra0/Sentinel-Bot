@@ -571,13 +571,13 @@ async function closeModalTicketApplication(interaction, client, redis, configApp
     if (closeReason && closeReason.trim() !==''){
         try {
             member = dataTicket.authorId ? await interaction.guild.members.fetch(dataTicket.authorId) : null;
-            if (user){
+            if (member){
                 embed = new EmbedBuilder()
                     .setColor('#FF0000')
                     .setTitle('Cierre de Ticket')
                     .setDescription(`Tu ticket ha sido cerrado por un miembro del staff.\n\nMotivo: ${closeReason}`)
                     .setTimestamp();
-                await user.send({ embeds: [embed] }).catch((err) => {
+                await member.send({ embeds: [embed] }).catch((err) => {
                     console.log(`[ticketHandler] No se pudo enviar mensaje directo al usuario ${dataTicket.authorId}: ${err.message}`);
                 });
             }else{
